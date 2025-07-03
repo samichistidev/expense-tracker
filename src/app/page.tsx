@@ -128,7 +128,7 @@ export default function Home() {
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Salary or Rent"
+              placeholder="Salary or Rent"
             />
 
             <Label>Amount (negative for expense)</Label>
@@ -136,7 +136,7 @@ export default function Home() {
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="e.g. 200 or -50"
+              placeholder="200 or -50"
             />
 
             <Label>Date</Label>
