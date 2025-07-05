@@ -19,6 +19,7 @@ import {
   Settings as SettingsIcon,
   Sun,
   Moon,
+  Repeat,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -61,7 +62,7 @@ const TIPS = [
   "Invest a small percentage of each paycheck for long-term growth.",
   "Reconcile your bank statements weekly to catch errors early.",
 ];
-function getTipOfTheDay(): string {
+function getTipOfTheDay() {
   const today = new Date().toISOString().split("T")[0];
   const sum = Array.from(today).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   return TIPS[sum % TIPS.length];
@@ -69,12 +70,15 @@ function getTipOfTheDay(): string {
 function TipOfTheDay() {
   const tip = useMemo(() => getTipOfTheDay(), []);
   return (
-    <div className="mb-4 border rounded-md p-3">
-      <div className="flex justify-between flex-col gap-2">
+    <Card className="mb-4 border-blue-400 dark:border-blue-600">
+      <CardContent className="flex items-center justify-between">
         <p className="font-medium">💡 Tip of the Day:</p>
         <p className="ml-2 flex-1 text-sm">{tip}</p>
-      </div>
-    </div>
+        <Button variant="ghost" size="icon" onClick={() => window.alert(tip)}>
+          <Repeat className="w-5 h-5" />
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -108,21 +112,21 @@ const currencySymbols: Record<string, string> = {
 };
 
 export default function Home() {
-  // settings
+  // — Settings state
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const sd = localStorage.getItem("darkMode");
-    return sd !== null ? JSON.parse(sd) : false;
+    return sd ? JSON.parse(sd) : false;
   });
   const [showCategories, setShowCategories] = useState<boolean>(() => {
     const sc = localStorage.getItem("showCategories");
-    return sc !== null ? JSON.parse(sc) : false; // default off
+    return sc ? JSON.parse(sc) : false; // default off
   });
   const [currency, setCurrency] = useState<string>(() => {
     const sc = localStorage.getItem("currency");
     return sc && currencySymbols[sc] ? sc : "USD";
   });
 
-  // data
+  // — Data state
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const st = localStorage.getItem("transactions");
     return st ? JSON.parse(st) : [];
@@ -132,7 +136,7 @@ export default function Home() {
     return sc ? JSON.parse(sc) : DEFAULT_CATEGORIES;
   });
 
-  // form
+  // — Form state
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState<Date>(new Date());
@@ -141,39 +145,50 @@ export default function Home() {
     categories[0] || ""
   );
 
-  // delete dialog
+  // — Delete dialog state
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // persist & apply
+  // — Persist & apply settings/data
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
     localStorage.setItem("darkMode", JSON.stringify(darkMode));
   }, [darkMode]);
-  useEffect(
-    () =>
-      localStorage.setItem("showCategories", JSON.stringify(showCategories)),
-    [showCategories]
-  );
-  useEffect(() => localStorage.setItem("currency", currency), [currency]);
-  useEffect(
-    () => localStorage.setItem("transactions", JSON.stringify(transactions)),
-    [transactions]
-  );
+
+  useEffect(() => {
+    localStorage.setItem("showCategories", JSON.stringify(showCategories));
+  }, [showCategories]);
+
+  useEffect(() => {
+    localStorage.setItem("currency", currency);
+  }, [currency]);
+
+  useEffect(() => {
+    localStorage.setItem("transactions", JSON.stringify(transactions));
+  }, [transactions]);
+
   useEffect(() => {
     localStorage.setItem("categories", JSON.stringify(categories));
-    if (!categories.includes(selectedCategory) && categories.length)
+    // if the selectedCategory was removed, reset to first
+    if (!categories.includes(selectedCategory) && categories.length > 0) {
       setSelectedCategory(categories[0]);
-  }, [categories]);
+    }
+  }, [categories, selectedCategory]); // <-- added selectedCategory
 
-  // handlers
-  const clearStorage = () => {
-    setPendingDeleteId(null);
-    setDialogOpen(true); // reuse dialog for clear? could separate
+  // — Handlers
+  const promptDelete = (id: number) => {
+    setPendingDeleteId(id);
+    setDialogOpen(true);
   };
   const confirmDelete = () => {
-    if (pendingDeleteId !== null)
-      setTransactions((ts) => ts.filter((t) => t.id !== pendingDeleteId));
+    if (pendingDeleteId !== null) {
+      // -1 means “clear all”
+      if (pendingDeleteId === -1) {
+        setTransactions([]);
+      } else {
+        setTransactions((ts) => ts.filter((t) => t.id !== pendingDeleteId));
+      }
+    }
     setPendingDeleteId(null);
     setDialogOpen(false);
   };
@@ -195,10 +210,6 @@ export default function Home() {
     setAmount("");
     setDate(new Date());
   };
-  const promptDelete = (id: number) => {
-    setPendingDeleteId(id);
-    setDialogOpen(true);
-  };
   const addCategory = () => {
     const name = newCategory.trim();
     if (name && !categories.includes(name)) {
@@ -211,12 +222,12 @@ export default function Home() {
   const moveCategory = (from: number, to: number) => {
     if (to < 0 || to >= categories.length) return;
     const arr = [...categories];
-    const [m] = arr.splice(from, 1);
-    arr.splice(to, 0, m);
+    const [moved] = arr.splice(from, 1);
+    arr.splice(to, 0, moved);
     setCategories(arr);
   };
 
-  // summaries
+  // — Summaries
   const income = transactions
     .filter((t) => t.amount > 0)
     .reduce((s, t) => s + t.amount, 0);
@@ -235,11 +246,11 @@ export default function Home() {
     <main className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
       <Card className="w-full max-w-4xl mx-auto rounded-2xl shadow-xl dark:bg-gray-800">
         <CardContent className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left */}
+          {/* ─── Left: Tip, Header, Category Manager & Form ─── */}
           <div className="space-y-4">
             <TipOfTheDay />
 
-            {/* header */}
+            {/* Header with Settings & Dark-Mode */}
             <div className="flex justify-between items-center">
               <h1 className="text-2xl font-bold">Expense Tracker</h1>
               <div className="flex items-center space-x-2">
@@ -267,12 +278,9 @@ export default function Home() {
                     <Button
                       variant="destructive"
                       className="w-full"
-                      onClick={() => {
-                        setPendingDeleteId(-1);
-                        setDialogOpen(true);
-                      }}
+                      onClick={() => promptDelete(-1)}
                     >
-                      Clear Storage
+                      Clear All Data
                     </Button>
                   </PopoverContent>
                 </Popover>
@@ -290,7 +298,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* category manager */}
+            {/* Category Manager */}
             {showCategories && (
               <Card className="border-gray-300 dark:border-gray-600">
                 <CardContent className="space-y-2">
@@ -339,19 +347,21 @@ export default function Home() {
               </Card>
             )}
 
-            {/* form */}
+            {/* Form */}
             <div className="space-y-2">
               <Label>Description</Label>
               <Input
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
+
               <Label>Amount (negative for expense)</Label>
               <Input
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
+
               {showCategories && (
                 <>
                   <Label>Category</Label>
@@ -372,6 +382,7 @@ export default function Home() {
                   </Select>
                 </>
               )}
+
               <Label>Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -389,6 +400,7 @@ export default function Home() {
                   />
                 </PopoverContent>
               </Popover>
+
               <Label>Currency</Label>
               <select
                 value={currency}
@@ -401,13 +413,14 @@ export default function Home() {
                   </option>
                 ))}
               </select>
+
               <Button className="w-full mt-2" onClick={addTransaction}>
                 Add Transaction
               </Button>
             </div>
           </div>
 
-          {/* Right */}
+          {/* ─── Right: Summary & Transactions ─── */}
           <div className="space-y-4">
             <div className="border-t pt-4">
               <p className="font-semibold">
@@ -425,6 +438,7 @@ export default function Home() {
                 </span>
               </div>
             </div>
+
             {showCategories && (
               <div>
                 <h3 className="font-semibold mb-2">By Category</h3>
@@ -445,6 +459,7 @@ export default function Home() {
                 </div>
               </div>
             )}
+
             <div className="space-y-2 pt-4">
               {transactions.map((t) => (
                 <div
@@ -484,14 +499,15 @@ export default function Home() {
         </CardContent>
       </Card>
 
-      {/* Delete Confirmation Dialog */}
+      {/* ─── Delete / Clear Confirmation Dialog ─── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this item? This action cannot be
-              undone.
+              {pendingDeleteId === -1
+                ? "This will clear all your data. Continue?"
+                : "Are you sure you want to delete this transaction? This action cannot be undone."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -499,7 +515,7 @@ export default function Home() {
               Cancel
             </Button>
             <Button variant="destructive" onClick={confirmDelete}>
-              Delete
+              {pendingDeleteId === -1 ? "Clear All" : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>
