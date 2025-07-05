@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     siteName: "Expense Tracker",
     images: [
       {
-        url: "./og image.png",
+        url: "https://smexpensetracker.netlify.app/og%20image.png",
         width: 1200,
         height: 630,
         alt: "Screenshot of Expense Tracker UI",
@@ -53,7 +53,7 @@ export const metadata: Metadata = {
     description:
       "Track your expenses in style: dark/light mode, multi-currency, date stamps, tips, and more.",
     creator: "@samichisti",
-    images: ["./og image.png"],
+    images: ["https://smexpensetracker.netlify.app/og%20image.png"],
   },
 
   robots: {
