@@ -11,11 +11,37 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon, Trash2, Sun, Moon } from "lucide-react";
+import {
+  Calendar as CalendarIcon,
+  Trash2,
+  Repeat,
+  ChevronUp,
+  ChevronDown,
+  Settings as SettingsIcon,
+  Sun,
+  Moon,
+} from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { format } from "date-fns";
 
 //
-// ——— Tip of the Day Component ———
+// ——— Tip of the Day ———
 //
 const TIPS = [
   "Automate small savings: round up each expense and stash the spare change.",
@@ -37,40 +63,42 @@ const TIPS = [
   "Invest a small percentage of each paycheck for long-term growth.",
   "Reconcile your bank statements weekly to catch errors early.",
 ];
-
 function getTipOfTheDay(): string {
   const today = new Date().toISOString().split("T")[0];
   const sum = Array.from(today).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   return TIPS[sum % TIPS.length];
 }
-
 function TipOfTheDay() {
   const tip = useMemo(() => getTipOfTheDay(), []);
   return (
-    <div className="py-4 px-4 mb-4 border rounded-md">
-      <div className="flex justify-between">
-        <div className="flex flex-col gap-2">
-          <p className="font-medium">💡 Tip of the Day:</p>
-          <p className="ml-2 flex-1 text-sm">{tip}</p>
-        </div>
+    <div className="mb-4 border rounded-md p-3">
+      <div className="flex justify-between flex-col gap-2">
+        <p className="font-medium">💡 Tip of the Day:</p>
+        <p className="ml-2 flex-1 text-sm">{tip}</p>
       </div>
     </div>
   );
 }
 
 //
-// ——— Main Home Component ———
+// ——— Main Component ———
 //
 type Transaction = {
   id: number;
   description: string;
   amount: number;
   date: string;
+  category: string;
 };
-
-type Currency = "USD" | "EUR" | "BDT" | "GBP" | "JPY" | "AUD" | "CAD" | "INR";
-
-const currencySymbols: Record<Currency, string> = {
+const DEFAULT_CATEGORIES = [
+  "Salary",
+  "Rent",
+  "Groceries",
+  "Utilities",
+  "Entertainment",
+  "Other",
+];
+const currencySymbols: Record<string, string> = {
   USD: "$",
   EUR: "€",
   BDT: "৳",
@@ -82,50 +110,115 @@ const currencySymbols: Record<Currency, string> = {
 };
 
 export default function Home() {
-  const [darkMode, setDarkMode] = useState(false);
-  const [currency, setCurrency] = useState<Currency>("USD");
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  // settings
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    const sd = localStorage.getItem("darkMode");
+    return sd !== null ? JSON.parse(sd) : false;
+  });
+  const [showCategories, setShowCategories] = useState<boolean>(() => {
+    const sc = localStorage.getItem("showCategories");
+    return sc !== null ? JSON.parse(sc) : false; // default off
+  });
+  const [currency, setCurrency] = useState<string>(() => {
+    const sc = localStorage.getItem("currency");
+    return sc && currencySymbols[sc] ? sc : "USD";
+  });
+
+  // data
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const st = localStorage.getItem("transactions");
+    return st ? JSON.parse(st) : [];
+  });
+  const [categories, setCategories] = useState<string[]>(() => {
+    const sc = localStorage.getItem("categories");
+    return sc ? JSON.parse(sc) : DEFAULT_CATEGORIES;
+  });
+
+  // form
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState<Date>(new Date());
+  const [newCategory, setNewCategory] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    categories[0] || ""
+  );
 
-  useEffect(() => {
-    const sd = localStorage.getItem("darkMode");
-    if (sd) setDarkMode(JSON.parse(sd));
-    const sc = localStorage.getItem("currency");
-    if (sc && (Object.keys(currencySymbols) as string[]).includes(sc))
-      setCurrency(sc as Currency);
-    const st = localStorage.getItem("transactions");
-    if (st) setTransactions(JSON.parse(st));
-  }, []);
+  // delete dialog
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
+  // persist & apply
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
     localStorage.setItem("darkMode", JSON.stringify(darkMode));
   }, [darkMode]);
-  useEffect(() => void localStorage.setItem("currency", currency), [currency]);
   useEffect(
     () =>
-      void localStorage.setItem("transactions", JSON.stringify(transactions)),
+      localStorage.setItem("showCategories", JSON.stringify(showCategories)),
+    [showCategories]
+  );
+  useEffect(() => localStorage.setItem("currency", currency), [currency]);
+  useEffect(
+    () => localStorage.setItem("transactions", JSON.stringify(transactions)),
     [transactions]
   );
+  useEffect(() => {
+    localStorage.setItem("categories", JSON.stringify(categories));
+    if (!categories.includes(selectedCategory) && categories.length)
+      setSelectedCategory(categories[0]);
+  }, [categories]);
 
+  // handlers
+  const clearStorage = () => {
+    setPendingDeleteId(null);
+    setDialogOpen(true); // reuse dialog for clear? could separate
+  };
+  const confirmDelete = () => {
+    if (pendingDeleteId !== null)
+      setTransactions((ts) => ts.filter((t) => t.id !== pendingDeleteId));
+    setPendingDeleteId(null);
+    setDialogOpen(false);
+  };
   const addTransaction = () => {
     const num = parseFloat(amount);
     if (!description || isNaN(num)) return;
     const iso = date.toISOString().split("T")[0];
-    setTransactions([
-      { id: Date.now(), description, amount: num, date: iso },
-      ...transactions,
+    setTransactions((ts) => [
+      {
+        id: Date.now(),
+        description,
+        amount: num,
+        date: iso,
+        category: selectedCategory,
+      },
+      ...ts,
     ]);
     setDescription("");
     setAmount("");
     setDate(new Date());
   };
+  const promptDelete = (id: number) => {
+    setPendingDeleteId(id);
+    setDialogOpen(true);
+  };
+  const addCategory = () => {
+    const name = newCategory.trim();
+    if (name && !categories.includes(name)) {
+      setCategories((cs) => [...cs, name]);
+      setNewCategory("");
+    }
+  };
+  const removeCategory = (i: number) =>
+    setCategories((cs) => cs.filter((_, idx) => idx !== i));
+  const moveCategory = (from: number, to: number) => {
+    if (to < 0 || to >= categories.length) return;
+    const arr = [...categories];
+    const [m] = arr.splice(from, 1);
+    arr.splice(to, 0, m);
+    setCategories(arr);
+  };
 
-  const deleteTransaction = (id: number) =>
-    setTransactions(transactions.filter((t) => t.id !== id));
-
+  // summaries
   const income = transactions
     .filter((t) => t.amount > 0)
     .reduce((s, t) => s + t.amount, 0);
@@ -133,47 +226,154 @@ export default function Home() {
     .filter((t) => t.amount < 0)
     .reduce((s, t) => s + t.amount, 0);
   const balance = income + expenses;
+  const byCategory = categories.map((cat) => ({
+    cat,
+    total: transactions
+      .filter((t) => t.category === cat)
+      .reduce((s, t) => s + t.amount, 0),
+  }));
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
-      <Card className="w-full max-w-md lg:max-w-4xl mx-auto rounded-2xl shadow-xl dark:bg-gray-800">
+      <Card className="w-full max-w-4xl mx-auto rounded-2xl shadow-xl dark:bg-gray-800">
         <CardContent className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* ─── Left Column on lg+: Tip, Header, Form ─── */}
+          {/* Left */}
           <div className="space-y-4">
             <TipOfTheDay />
 
-            <div className="flex items-center justify-between">
+            {/* header */}
+            <div className="flex justify-between items-center">
               <h1 className="text-2xl font-bold">Expense Tracker</h1>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setDarkMode(!darkMode)}
-                aria-label="Toggle dark mode"
-              >
-                {darkMode ? (
-                  <Sun className="w-5 h-5" />
-                ) : (
-                  <Moon className="w-5 h-5" />
-                )}
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <SettingsIcon className="w-5 h-5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span>Enable Categories</span>
+                      <Switch
+                        checked={showCategories}
+                        onCheckedChange={setShowCategories}
+                      />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>Dark Mode</span>
+                      <Switch
+                        checked={darkMode}
+                        onCheckedChange={setDarkMode}
+                      />
+                    </div>
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      onClick={() => {
+                        setPendingDeleteId(-1);
+                        setDialogOpen(true);
+                      }}
+                    >
+                      Clear Storage
+                    </Button>
+                  </PopoverContent>
+                </Popover>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setDarkMode(!darkMode)}
+                >
+                  {darkMode ? (
+                    <Sun className="w-5 h-5" />
+                  ) : (
+                    <Moon className="w-5 h-5" />
+                  )}
+                </Button>
+              </div>
             </div>
 
+            {/* category manager */}
+            {showCategories && (
+              <Card className="border-gray-300 dark:border-gray-600">
+                <CardContent className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="New category"
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                    />
+                    <Button onClick={addCategory}>Add</Button>
+                  </div>
+                  <div className="space-y-1 max-h-32 overflow-auto">
+                    {categories.map((cat, i) => (
+                      <div
+                        key={cat}
+                        className="flex justify-between items-center text-sm"
+                      >
+                        <span>{cat}</span>
+                        <div className="flex gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => moveCategory(i, i - 1)}
+                          >
+                            <ChevronUp className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => moveCategory(i, i + 1)}
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => removeCategory(i)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* form */}
             <div className="space-y-2">
               <Label>Description</Label>
               <Input
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Salary or Rent"
               />
-
               <Label>Amount (negative for expense)</Label>
               <Input
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="200 or -50"
               />
-
+              {showCategories && (
+                <>
+                  <Label>Category</Label>
+                  <Select
+                    value={selectedCategory}
+                    onValueChange={(v) => setSelectedCategory(v)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
               <Label>Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -191,27 +391,25 @@ export default function Home() {
                   />
                 </PopoverContent>
               </Popover>
-
               <Label>Currency</Label>
               <select
                 value={currency}
-                onChange={(e) => setCurrency(e.target.value as Currency)}
+                onChange={(e) => setCurrency(e.target.value)}
                 className="w-full p-2 border rounded-md dark:bg-gray-700 dark:text-white"
               >
-                {Object.entries(currencySymbols).map(([code, sym]) => (
-                  <option key={code} value={code}>
-                    {code} ({sym})
+                {Object.entries(currencySymbols).map(([c, s]) => (
+                  <option key={c} value={c}>
+                    {c} ({s})
                   </option>
                 ))}
               </select>
-
               <Button className="w-full mt-2" onClick={addTransaction}>
                 Add Transaction
               </Button>
             </div>
           </div>
 
-          {/* ─── Right Column on lg+: Summary & List ─── */}
+          {/* Right */}
           <div className="space-y-4">
             <div className="border-t pt-4">
               <p className="font-semibold">
@@ -229,7 +427,26 @@ export default function Home() {
                 </span>
               </div>
             </div>
-
+            {showCategories && (
+              <div>
+                <h3 className="font-semibold mb-2">By Category</h3>
+                <div className="space-y-1">
+                  {byCategory.map(({ cat, total }) => (
+                    <div key={cat} className="flex justify-between text-sm">
+                      <span>{cat}</span>
+                      <span
+                        className={
+                          total >= 0 ? "text-green-600" : "text-red-600"
+                        }
+                      >
+                        {currencySymbols[currency]}
+                        {Math.abs(total).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="space-y-2 pt-4">
               {transactions.map((t) => (
                 <div
@@ -238,9 +455,12 @@ export default function Home() {
                 >
                   <div>
                     <p className="text-sm">{t.description}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {t.date}
-                    </p>
+                    <p className="text-xs text-gray-500">{t.date}</p>
+                    {showCategories && (
+                      <p className="text-xs uppercase text-gray-600">
+                        {t.category}
+                      </p>
+                    )}
                     <p
                       className={`text-xs ${
                         t.amount >= 0
@@ -255,7 +475,7 @@ export default function Home() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={() => deleteTransaction(t.id)}
+                    onClick={() => promptDelete(t.id)}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -265,6 +485,27 @@ export default function Home() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this item? This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
