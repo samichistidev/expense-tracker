@@ -14,7 +14,6 @@ import { Calendar } from "@/components/ui/calendar";
 import {
   Calendar as CalendarIcon,
   Trash2,
-  Repeat,
   ChevronUp,
   ChevronDown,
   Settings as SettingsIcon,
@@ -31,7 +30,6 @@ import {
 } from "@/components/ui/select";
 import {
   Dialog,
-  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogFooter,
