@@ -1,3 +1,4 @@
+// src/app/page.tsx
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -19,7 +20,6 @@ import {
   Settings as SettingsIcon,
   Sun,
   Moon,
-  Repeat,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -39,9 +39,6 @@ import {
 } from "@/components/ui/dialog";
 import { format } from "date-fns";
 
-//
-// ——— Tip of the Day ———
-//
 const TIPS = [
   "Automate small savings: round up each expense and stash the spare change.",
   "Review subscriptions monthly—cancel any you no longer use.",
@@ -49,42 +46,36 @@ const TIPS = [
   "Build an emergency fund of at least one month’s expenses.",
   "Use separate accounts or “buckets” to earmark money for big goals.",
   "Pay yourself first: transfer savings as soon as you get paid.",
-  "Compare prices on recurring bills (insurance, phone) every 6 months.",
+  "Compare prices on recurring bills every 6 months.",
   "Plan meals ahead to reduce impulse grocery or takeout spending.",
-  "Track your daily expenses to identify spending patterns.",
-  "Categorize transactions immediately to simplify monthly reviews.",
+  "Track your daily expenses to identify patterns.",
+  "Categorize transactions immediately to simplify reviews.",
   "Set bill-payment reminders to avoid late fees.",
   "Review your budget at month-end and adjust allocations.",
-  "Use cashback apps to get rewards on regular purchases.",
-  "Negotiate lower rates on recurring bills at least once a year.",
-  "Limit dining out to special occasions to cut restaurant bills.",
-  "Save windfalls (bonuses, gifts) instead of spending them.",
-  "Invest a small percentage of each paycheck for long-term growth.",
-  "Reconcile your bank statements weekly to catch errors early.",
+  "Use cashback apps to get rewards on purchases.",
+  "Negotiate lower rates on recurring bills annually.",
+  "Limit dining out to special occasions.",
+  "Save windfalls instead of spending them.",
+  "Invest a small % of each paycheck for growth.",
+  "Reconcile bank statements weekly to catch errors.",
 ];
-function getTipOfTheDay() {
-  const today = new Date().toISOString().split("T")[0];
-  const sum = Array.from(today).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  return TIPS[sum % TIPS.length];
-}
+
 function TipOfTheDay() {
-  const tip = useMemo(() => getTipOfTheDay(), []);
+  const tip = useMemo(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const sum = Array.from(today).reduce((a, c) => a + c.charCodeAt(0), 0);
+    return TIPS[sum % TIPS.length];
+  }, []);
   return (
-    <Card className="mb-4 border-blue-400 dark:border-blue-600">
-      <CardContent className="flex items-center justify-between">
+    <div className="mb-4 border rounded-md p-3">
+      <div className="flex justify-between flex-col gap-2">
         <p className="font-medium">💡 Tip of the Day:</p>
         <p className="ml-2 flex-1 text-sm">{tip}</p>
-        <Button variant="ghost" size="icon" onClick={() => window.alert(tip)}>
-          <Repeat className="w-5 h-5" />
-        </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
-//
-// ——— Main Component ———
-//
 type Transaction = {
   id: number;
   description: string;
@@ -112,47 +103,46 @@ const currencySymbols: Record<string, string> = {
 };
 
 export default function Home() {
-  // — Settings state
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    const sd = localStorage.getItem("darkMode");
-    return sd ? JSON.parse(sd) : false;
-  });
-  const [showCategories, setShowCategories] = useState<boolean>(() => {
-    const sc = localStorage.getItem("showCategories");
-    return sc ? JSON.parse(sc) : false; // default off
-  });
-  const [currency, setCurrency] = useState<string>(() => {
-    const sc = localStorage.getItem("currency");
-    return sc && currencySymbols[sc] ? sc : "USD";
-  });
+  // — Initial state (safe defaults)
+  const [darkMode, setDarkMode] = useState(false);
+  const [showCategories, setShowCategories] = useState(false);
+  const [currency, setCurrency] = useState("USD");
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
 
-  // — Data state
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const st = localStorage.getItem("transactions");
-    return st ? JSON.parse(st) : [];
-  });
-  const [categories, setCategories] = useState<string[]>(() => {
-    const sc = localStorage.getItem("categories");
-    return sc ? JSON.parse(sc) : DEFAULT_CATEGORIES;
-  });
-
-  // — Form state
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState<Date>(new Date());
   const [newCategory, setNewCategory] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>(
-    categories[0] || ""
-  );
+  const [selectedCategory, setSelectedCategory] = useState(categories[0] || "");
 
-  // — Delete dialog state
+  // Delete dialog
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // — Persist & apply settings/data
+  // — Load from localStorage on mount
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
+    if (typeof window === "undefined") return;
+    const sd = localStorage.getItem("darkMode");
+    if (sd !== null) setDarkMode(JSON.parse(sd));
+
+    const sc = localStorage.getItem("showCategories");
+    if (sc !== null) setShowCategories(JSON.parse(sc));
+
+    const cur = localStorage.getItem("currency");
+    if (cur && currencySymbols[cur]) setCurrency(cur);
+
+    const tx = localStorage.getItem("transactions");
+    if (tx) setTransactions(JSON.parse(tx));
+
+    const cats = localStorage.getItem("categories");
+    if (cats) setCategories(JSON.parse(cats));
+  }, []);
+
+  // — Persist to localStorage whenever state changes
+  useEffect(() => {
     localStorage.setItem("darkMode", JSON.stringify(darkMode));
+    document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
   useEffect(() => {
@@ -169,11 +159,10 @@ export default function Home() {
 
   useEffect(() => {
     localStorage.setItem("categories", JSON.stringify(categories));
-    // if the selectedCategory was removed, reset to first
-    if (!categories.includes(selectedCategory) && categories.length > 0) {
+    if (!categories.includes(selectedCategory) && categories.length) {
       setSelectedCategory(categories[0]);
     }
-  }, [categories, selectedCategory]); // <-- added selectedCategory
+  }, [categories, selectedCategory]);
 
   // — Handlers
   const promptDelete = (id: number) => {
@@ -181,13 +170,10 @@ export default function Home() {
     setDialogOpen(true);
   };
   const confirmDelete = () => {
-    if (pendingDeleteId !== null) {
-      // -1 means “clear all”
-      if (pendingDeleteId === -1) {
-        setTransactions([]);
-      } else {
-        setTransactions((ts) => ts.filter((t) => t.id !== pendingDeleteId));
-      }
+    if (pendingDeleteId === -1) {
+      setTransactions([]);
+    } else if (pendingDeleteId !== null) {
+      setTransactions((ts) => ts.filter((t) => t.id !== pendingDeleteId));
     }
     setPendingDeleteId(null);
     setDialogOpen(false);
@@ -246,11 +232,10 @@ export default function Home() {
     <main className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
       <Card className="w-full max-w-4xl mx-auto rounded-2xl shadow-xl dark:bg-gray-800">
         <CardContent className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* ─── Left: Tip, Header, Category Manager & Form ─── */}
+          {/* Left */}
           <div className="space-y-4">
             <TipOfTheDay />
 
-            {/* Header with Settings & Dark-Mode */}
             <div className="flex justify-between items-center">
               <h1 className="text-2xl font-bold">Expense Tracker</h1>
               <div className="flex items-center space-x-2">
@@ -284,6 +269,7 @@ export default function Home() {
                     </Button>
                   </PopoverContent>
                 </Popover>
+
                 <Button
                   variant="ghost"
                   size="icon"
@@ -298,7 +284,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Category Manager */}
             {showCategories && (
               <Card className="border-gray-300 dark:border-gray-600">
                 <CardContent className="space-y-2">
@@ -347,7 +332,6 @@ export default function Home() {
               </Card>
             )}
 
-            {/* Form */}
             <div className="space-y-2">
               <Label>Description</Label>
               <Input
@@ -420,7 +404,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ─── Right: Summary & Transactions ─── */}
+          {/* Right */}
           <div className="space-y-4">
             <div className="border-t pt-4">
               <p className="font-semibold">
@@ -499,14 +483,14 @@ export default function Home() {
         </CardContent>
       </Card>
 
-      {/* ─── Delete / Clear Confirmation Dialog ─── */}
+      {/* Confirm Delete / Clear Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
               {pendingDeleteId === -1
-                ? "This will clear all your data. Continue?"
+                ? "This will clear all your data — this cannot be undone."
                 : "Are you sure you want to delete this transaction? This action cannot be undone."}
             </DialogDescription>
           </DialogHeader>

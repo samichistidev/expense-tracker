@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+// app/layout.tsx
 import "./globals.css";
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Expense Tracker by Sami Chisti • Front End Developer",
@@ -19,16 +20,9 @@ export const metadata: Metadata = {
     "budgeting",
     "financial dashboard",
   ],
-  authors: [
-    { name: "Sami Chisti", url: "https://smexpensetracker.netlify.app" },
-  ],
+  authors: [{ name: "Sami Chisti", url: "https://yourdomain.com" }],
   creator: "Sami Chisti",
   publisher: "Sami Chisti",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#000000" },
-  ],
-
   openGraph: {
     title: "Expense Tracker by Sami Chisti",
     description:
@@ -46,28 +40,18 @@ export const metadata: Metadata = {
     locale: "en_US",
     type: "website",
   },
-
   twitter: {
     card: "summary_large_image",
     title: "Expense Tracker by Sami Chisti",
     description:
       "Track your expenses in style: dark/light mode, multi-currency, date stamps, tips, and more.",
-    creator: "@samichisti",
+    creator: "@yourTwitterHandle",
     images: ["https://smexpensetracker.netlify.app/og%20image.png"],
   },
-
   robots: {
     index: true,
     follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-snippet": -1,
-      "max-image-preview": "large",
-      "max-video-preview": -1,
-    },
   },
-
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
@@ -76,12 +60,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
-      <body className={`antialiased`}>{children}</body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
